@@ -36,3 +36,14 @@ out/
 ### VS Code ###
 .vscode/
 
+### Spring Boot ###
+application-local.yml
+application-dev.yml
+application-prod.yml
+.env
+*.env
+
+### API Keys and Secrets ###
+**/application-*.yml
+!application.yml
+

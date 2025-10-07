@@ -1,8 +1,8 @@
 package com.weathermate.service;
 
-import com.weathermate.config.OpenWeatherConfig;
+import com.weathermate.config.WeatherApiConfig;
 import com.weathermate.domain.Weather;
-import com.weathermate.dto.OpenWeatherResponse;
+import com.weathermate.dto.WeatherApiResponse;
 import com.weathermate.dto.WeatherResponse;
 import com.weathermate.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,87 +14,112 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
 public class WeatherService {
-    
+
     private final WeatherRepository weatherRepository;
-    private final OpenWeatherConfig openWeatherConfig;
+    private final WeatherApiConfig weatherApiConfig;
     private final WebClient webClient;
     private final RecommendationService recommendationService;
-    private final MockWeatherService mockWeatherService;
-    
+
     @Cacheable(value = "weather-data", key = "#city")
     public WeatherResponse getWeatherByCity(String city) {
         log.info("날씨 정보 조회 시작: {}", city);
-        
-        // 캐시 유효 시간 계산 (10분)
-        LocalDateTime cacheThreshold = LocalDateTime.now()
-            .minusMinutes(openWeatherConfig.getCacheDurationMinutes());
-        
-        // DB에서 최근 데이터 조회
-        Optional<Weather> cachedWeather = weatherRepository
-            .findFirstByCityAndFetchedAtAfterOrderByFetchedAtDesc(city, cacheThreshold);
-        
-        if (cachedWeather.isPresent()) {
-            log.info("캐시된 날씨 데이터 사용: {}", city);
-            return buildWeatherResponse(cachedWeather.get());
-        }
+
+        // 도시명을 영어로 변환
+        String englishCityName = convertToEnglishCityName(city);
         
         try {
-            // API 호출 시도
-            log.info("OpenWeather API 호출: {}", city);
-            Weather weather = fetchWeatherFromAPI(city);
-            
+            // 실제 WeatherAPI.com 호출
+            log.info("WeatherAPI.com 호출: {}", englishCityName);
+            Weather weather = fetchWeatherFromAPI(englishCityName);
+
             // DB에 저장
             weatherRepository.save(weather);
-            
+
             return buildWeatherResponse(weather);
         } catch (Exception e) {
-            log.warn("API 호출 실패, Mock 데이터 사용: {}", e.getMessage());
-            return mockWeatherService.getMockWeatherByCity(city);
+            log.error("WeatherAPI 호출 실패: {}", e.getMessage());
+            throw new RuntimeException("날씨 데이터를 가져올 수 없습니다: " + e.getMessage());
+        }
+    }
+    
+    private String convertToEnglishCityName(String city) {
+        switch (city.toLowerCase()) {
+            case "서울": return "Seoul";
+            case "부산": return "Busan";
+            case "인천": return "Incheon";
+            case "대구": return "Daegu";
+            case "광주": return "Gwangju";
+            case "대전": return "Daejeon";
+            case "울산": return "Ulsan";
+            case "제주": return "Jeju";
+            default: return city; // 이미 영어인 경우 그대로 반환
         }
     }
     
     private Weather fetchWeatherFromAPI(String city) {
-        String url = String.format("%s/weather?q=%s&appid=%s&units=metric&lang=kr",
-            openWeatherConfig.getBaseUrl(),
-            city,
-            openWeatherConfig.getKey()
+        String url = String.format("%s/current.json?key=%s&q=%s&aqi=no",
+            weatherApiConfig.getBaseUrl(),
+            weatherApiConfig.getKey(),
+            city
         );
         
-        OpenWeatherResponse response = webClient.get()
+        log.info("WeatherAPI URL: {}", url);
+        
+        WeatherApiResponse response = webClient.get()
             .uri(url)
             .retrieve()
-            .bodyToMono(OpenWeatherResponse.class)
+            .bodyToMono(WeatherApiResponse.class)
             .onErrorResume(e -> {
-                log.error("OpenWeather API 호출 실패: {}", e.getMessage());
-                return Mono.empty();
+                log.error("WeatherAPI 호출 실패: {}", e.getMessage());
+                return Mono.error(new RuntimeException("WeatherAPI 호출 실패: " + e.getMessage()));
             })
             .block();
         
-        if (response == null || response.getWeather().isEmpty()) {
+        if (response == null || response.getCurrent() == null) {
             throw new RuntimeException("날씨 데이터를 가져올 수 없습니다.");
         }
         
         return Weather.builder()
-            .city(response.getName())
-            .temperature(response.getMain().getTemp())
-            .weatherCondition(response.getWeather().get(0).getMain())
-            .description(response.getWeather().get(0).getDescription())
-            .humidity(response.getMain().getHumidity())
-            .windSpeed(response.getWind().getSpeed())
-            .iconCode(response.getWeather().get(0).getIcon())
+            .city(response.getLocation().getName())
+            .temperature(response.getCurrent().getTemp_c())
+            .weatherCondition(convertWeatherCondition(response.getCurrent().getCondition().getText()))
+            .description(response.getCurrent().getCondition().getText())
+            .humidity(response.getCurrent().getHumidity())
+            .windSpeed(response.getCurrent().getWind_kph() / 3.6) // km/h를 m/s로 변환
+            .iconCode(response.getCurrent().getCondition().getIcon())
             .fetchedAt(LocalDateTime.now())
             .build();
     }
     
+    private String convertWeatherCondition(String condition) {
+        String lowerCondition = condition.toLowerCase();
+        
+        if (lowerCondition.contains("sunny") || lowerCondition.contains("clear")) {
+            return "Clear";
+        } else if (lowerCondition.contains("cloud")) {
+            return "Clouds";
+        } else if (lowerCondition.contains("rain")) {
+            return "Rain";
+        } else if (lowerCondition.contains("snow")) {
+            return "Snow";
+        } else if (lowerCondition.contains("mist") || lowerCondition.contains("fog")) {
+            return "Mist";
+        } else if (lowerCondition.contains("thunder")) {
+            return "Thunderstorm";
+        } else {
+            return "Clear"; // 기본값
+        }
+    }
+    
     private WeatherResponse buildWeatherResponse(Weather weather) {
-        return WeatherResponse.builder()
+        WeatherResponse response = WeatherResponse.builder()
             .city(weather.getCity())
             .temperature(weather.getTemperature())
             .weatherCondition(weather.getWeatherCondition())
@@ -103,12 +128,14 @@ public class WeatherService {
             .windSpeed(weather.getWindSpeed())
             .iconCode(weather.getIconCode())
             .fetchedAt(weather.getFetchedAt())
-            .recommendation(recommendationService.getRecommendation(
-                weather.getWeatherCondition(), 
-                weather.getTemperature()
-            ))
             .build();
+
+        // 추천 정보 추가
+        response.setRecommendation(recommendationService.getRecommendation(
+            weather.getWeatherCondition(),
+            weather.getTemperature()
+        ));
+
+        return response;
     }
 }
-
-

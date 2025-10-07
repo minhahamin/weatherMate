@@ -66,15 +66,10 @@ logging:
     org.springframework.web.servlet: DEBUG
 
 
-# OpenWeather API 설정
-openweather:
-  api:
-    key: ${OPENWEATHER_API_KEY:여기에_새로운_API_키_입력}
-    base-url: https://api.openweathermap.org/data/2.5
-    cache-duration-minutes: 10
-
-# Mock 데이터 설정 (API 키 없을 때 사용)
+# WeatherAPI.com 설정
 weather:
-  mock:
-    enabled: true  # API 키가 없을 때 true로 설정
+  api:
+    key: ${WEATHER_API_KEY}
+    base-url: https://api.weatherapi.com/v1
+    cache-duration-minutes: 10
 
