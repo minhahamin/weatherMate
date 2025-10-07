@@ -103,9 +103,9 @@ public class WeatherService {
         
         if (lowerCondition.contains("sunny") || lowerCondition.contains("clear")) {
             return "Clear";
-        } else if (lowerCondition.contains("cloud")) {
+        } else if (lowerCondition.contains("overcast") || lowerCondition.contains("cloud")) {
             return "Clouds";
-        } else if (lowerCondition.contains("rain")) {
+        } else if (lowerCondition.contains("rain") || lowerCondition.contains("drizzle")) {
             return "Rain";
         } else if (lowerCondition.contains("snow")) {
             return "Snow";

@@ -390,13 +390,14 @@
             const updatedTime = new Date(data.fetchedAt).toLocaleString();
             document.getElementById('updatedTime').textContent = updatedTime;
             
-            // Set weather icon
+            // Set weather icon with more accurate mapping
             const weatherIcon = document.getElementById('weatherIcon');
             const emoji = data.recommendation.emoji;
             if (emoji && emoji.length > 0 && !emoji.includes('?')) {
                 weatherIcon.innerHTML = emoji;
             } else {
-                weatherIcon.innerHTML = getWeatherIcon(data.weatherCondition);
+                // 날씨 설명과 조건을 모두 고려하여 더 정확한 이모지 선택
+                weatherIcon.innerHTML = getDetailedWeatherIcon(data.description, data.weatherCondition);
             }
             
             // Display recommendations
@@ -421,7 +422,35 @@
                 'Mist': '🌫️',
                 'Drizzle': '🌦️'
             };
-            return icons[condition] || '🌤️';
+            return icons[condition] || '☁️'; // 기본값을 흐림으로 변경
+        }
+        
+        function getDetailedWeatherIcon(description, condition) {
+            const desc = description.toLowerCase();
+            const cond = condition.toLowerCase();
+            
+            // 더 정확한 날씨 이모지 매핑
+            if (desc.includes('overcast') || desc.includes('cloudy')) {
+                return '☁️';
+            } else if (desc.includes('partly cloudy')) {
+                return '⛅';
+            } else if (desc.includes('sunny') || desc.includes('clear')) {
+                return '☀️';
+            } else if (desc.includes('rain') || desc.includes('drizzle')) {
+                return '🌧️';
+            } else if (desc.includes('snow')) {
+                return '❄️';
+            } else if (desc.includes('thunder')) {
+                return '⛈️';
+            } else if (desc.includes('mist') || desc.includes('fog')) {
+                return '🌫️';
+            } else if (cond === 'clouds') {
+                return '☁️';
+            } else if (cond === 'clear') {
+                return '☀️';
+            } else {
+                return '☁️'; // 기본값을 흐림으로 설정
+            }
         }
 
         function cleanEmoji(emoji) {

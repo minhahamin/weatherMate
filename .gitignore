@@ -42,7 +42,7 @@ application-dev.yml
 application-prod.yml
 .env
 *.env
-
+.env.properties
 ### API Keys and Secrets ###
 **/application-*.yml
 !application.yml
