@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: weathermate
+  
+  datasource:
+    url: jdbc:h2:mem:weathermate
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+  
+server:
+  port: 8080
+  
+logging:
+  level:
+    com.weathermate: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: INFO
+
